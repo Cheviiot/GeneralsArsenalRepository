@@ -106,6 +106,29 @@ class RepositoryToolTests(unittest.TestCase):
         )
         self.assertIn("HTTPS", result.stderr)
 
+    def test_catalog_additions_need_no_launcher_source_change(self) -> None:
+        self.initialize()
+        self.run_tool(
+            "add", "--engine", "zerohour", "--type", "mod", "--id", "dynamic-mod",
+            "--name", "Dynamic Mod", "--version", "1", "--package", str(self.package),
+        )
+        self.run_tool(
+            "add", "--engine", "zerohour", "--type", "patch", "--id", "dynamic-patch",
+            "--parent", "dynamic-mod", "--name", "Dynamic Patch", "--version", "2",
+            "--package", str(self.package),
+        )
+        self.run_tool(
+            "add", "--engine", "zerohour", "--type", "addon", "--id", "dynamic-addon",
+            "--parent", "dynamic-patch", "--name", "Dynamic Addon", "--version", "3",
+            "--package", str(self.package),
+        )
+        catalog = json.loads((self.root / "public/v1/catalog.json").read_text(encoding="utf-8"))
+        items = {item["Id"]: item for item in catalog["Items"]}
+        self.assertEqual(set(items), {"dynamic-mod", "dynamic-patch", "dynamic-addon"})
+        self.assertEqual(items["dynamic-mod"]["Type"], "mod")
+        self.assertEqual(items["dynamic-patch"]["ParentId"], "dynamic-mod")
+        self.assertEqual(items["dynamic-addon"]["ParentId"], "dynamic-patch")
+
 
 if __name__ == "__main__":
     unittest.main()

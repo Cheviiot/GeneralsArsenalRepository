@@ -20,7 +20,7 @@ https://github.com/Cheviiot/GeneralsArsenalRepository/releases/latest/download/c
 
 GitHub redirects release downloads to its asset service. The native launcher
 follows that redirect and retains `HEAD`, byte-range resumption, ETag, and
-`If-Range` validation. GitHub currently limits an individual release asset to
+strong `If-Match` validation. GitHub currently limits an individual release asset to
 2 GiB. `repoctl.py` rejects a larger archive before publication.
 
 ## Publishing a modification
