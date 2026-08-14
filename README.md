@@ -80,6 +80,24 @@ The launcher downloads up to four files concurrently, retains a separate
 resumable partial for each one, verifies every SHA-256, and only then publishes
 the installed modification atomically.
 
+An author-hosted ZIP, 7z, RAR, BIG, or tar package can be referenced without
+mirroring it into this repository by using the alternative archive form:
+
+```json
+{
+  "archive": {
+    "url": "https://author.example/releases/example-patch.zip",
+    "sha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+    "size": 123456
+  }
+}
+```
+
+An external manifest must contain exactly one `archive` or `files` member.
+Every download is HTTPS-only and hash-pinned; changing an author's remote file
+without publishing a new version therefore fails closed instead of silently
+installing different content.
+
 Verify and publish it:
 
 ```bash
@@ -115,7 +133,7 @@ available to old manifests and resumable downloads.
   validated before the catalog changes.
 
 Use `--moddb-url`, `--discord-url`, `--news-url`, and `--support-url` only for
-informational HTTPS pages. An external file-set URL is accepted only together
+informational HTTPS pages. An external archive or file-set URL is accepted only together
 with a non-zero size and a full SHA-256 digest; credentials and non-HTTPS URLs
 are rejected.
 

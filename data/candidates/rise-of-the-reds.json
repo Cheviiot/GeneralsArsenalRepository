@@ -21,7 +21,7 @@
       "name": "HanPatch",
       "version": "32.2",
       "parent_id": "rise-of-the-reds",
-      "status": "permission-required",
+      "status": "published-author-hosted",
       "project_url": "https://www.moddb.com/mods/rise-of-the-reds-hanpatch",
       "metadata_url": "https://raw.githubusercontent.com/alanblack166/hanpatch-manifest/master/GenLauncherData.yaml",
       "requires": [
@@ -72,7 +72,7 @@
       "name": "ROTR Controlbar Pro 18 Button",
       "version": "1",
       "parent_id": "rise-of-the-reds",
-      "status": "permission-required",
+      "status": "published-author-hosted",
       "project_url": "https://www.moddb.com/mods/rise-of-the-reds",
       "metadata_url": "https://raw.githubusercontent.com/alanblack166/rotr-18-button-controlbar-pro-manifest/main/GenLauncherData.yaml",
       "requires": [
@@ -106,7 +106,7 @@
       "name": "HanPatch Easter Egg Units",
       "version": "1",
       "parent_id": "hanpatch",
-      "status": "permission-required",
+      "status": "published-author-hosted",
       "project_url": "https://www.moddb.com/mods/rise-of-the-reds-hanpatch",
       "metadata_url": "https://raw.githubusercontent.com/alanblack166/hanpatch-easter-egg-addon-manifest/master/GenLauncherData.yaml",
       "requires": [
@@ -118,9 +118,9 @@
       "id": "vanilla-campaigns-remastered",
       "type": "addon",
       "name": "Vanilla Campaigns Remastered",
-      "version": "1.862",
+      "version": "1.871",
       "parent_id": "hanpatch",
-      "status": "permission-required",
+      "status": "published-author-hosted",
       "project_url": "https://www.moddb.com/mods/rise-of-the-reds-hanpatch",
       "metadata_url": "https://raw.githubusercontent.com/StanislavSaw/Vanilla-Campaigns-Remastered---Manifest-file/master/Vanilla-Campaigns-Remastered---Manifest-file.yaml",
       "requires": [

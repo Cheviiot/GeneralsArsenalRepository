@@ -170,6 +170,50 @@ class RepositoryToolTests(unittest.TestCase):
         self.assertFalse(any((self.root / "public/v1/packages").rglob("*")))
         self.run_tool("verify")
 
+    def test_author_hosted_archive_is_published_without_mirroring_content(self) -> None:
+        self.initialize()
+        payload = b"immutable author archive"
+        manifest = Path(self.temporary.name) / "external-archive.json"
+        manifest.write_text(json.dumps({"archive": {
+            "url": "https://author.example.invalid/releases/patch.zip",
+            "sha256": hashlib.sha256(payload).hexdigest(),
+            "size": len(payload),
+        }}), encoding="utf-8")
+        self.run_tool(
+            "add", "--engine", "zerohour", "--type", "mod", "--id", "author-archive",
+            "--name", "Author Archive", "--version", "1.0", "--external-manifest", str(manifest),
+        )
+        catalog = json.loads((self.root / "public/v1/catalog.json").read_text(encoding="utf-8"))
+        item = catalog["Items"][0]
+        self.assertEqual(item["DownloadUrl"], "https://author.example.invalid/releases/patch.zip")
+        self.assertEqual(item["SHA256"], hashlib.sha256(payload).hexdigest())
+        self.assertEqual(item["Size"], len(payload))
+        self.assertNotIn("Files", item)
+        self.assertFalse(any((self.root / "public/v1/packages").rglob("*")))
+        self.run_tool("verify")
+
+    def test_ambiguous_external_delivery_is_rejected(self) -> None:
+        self.initialize()
+        manifest = Path(self.temporary.name) / "ambiguous-external.json"
+        manifest.write_text(json.dumps({
+            "archive": {
+                "url": "https://author.example.invalid/releases/patch.zip",
+                "sha256": "0" * 64,
+                "size": 1,
+            },
+            "files": [{
+                "path": "patch.big",
+                "url": "https://author.example.invalid/releases/patch.big",
+                "sha256": "0" * 64,
+                "size": 1,
+            }],
+        }), encoding="utf-8")
+        result = self.run_tool(
+            "add", "--engine", "zerohour", "--type", "mod", "--id", "ambiguous",
+            "--name", "Ambiguous", "--version", "1", "--external-manifest", str(manifest), success=False,
+        )
+        self.assertIn("exactly one archive or file set", result.stderr)
+
     def test_unsafe_external_file_set_is_rejected(self) -> None:
         self.initialize()
         manifest = Path(self.temporary.name) / "unsafe-external-files.json"

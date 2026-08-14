@@ -124,6 +124,97 @@
       "support_url": "",
       "type": "mod",
       "version": "1.87-pb2.0"
+    },
+    {
+      "conflicts": [],
+      "cover_path": "",
+      "discord_url": "https://discord.gg/REcbv37",
+      "engine": "zerohour",
+      "external_archive": {
+        "sha256": "fa27ae98e4c6862f2ac062eee524e0d857eb6a9e7575a63c265aba57f9ef8838",
+        "size": 140165308,
+        "url": "https://gen.insave.ovh/rotr/hanpatch/Hanpatch%20v32.2.zip"
+      },
+      "id": "hanpatch",
+      "moddb_url": "https://www.moddb.com/mods/rise-of-the-reds-hanpatch",
+      "name": "HanPatch",
+      "news_url": "",
+      "parent_id": "rise-of-the-reds",
+      "requires": [
+        "rise-of-the-reds@1.87-pb2.0"
+      ],
+      "support_url": "",
+      "type": "patch",
+      "version": "32.2"
+    },
+    {
+      "conflicts": [],
+      "cover_path": "",
+      "discord_url": "",
+      "engine": "zerohour",
+      "external_archive": {
+        "sha256": "3a6bc7415f420ffe8f5031f857e910968ad9ea67fb6bc54a767e580aa1ff042f",
+        "size": 13027731,
+        "url": "https://gen.insave.ovh/rotr/rotr-cbp-18button/Rotr_ControlBar_18.zip"
+      },
+      "id": "rotr-controlbar-18",
+      "moddb_url": "https://www.moddb.com/mods/rise-of-the-reds",
+      "name": "ROTR Controlbar Pro 18 Button",
+      "news_url": "",
+      "parent_id": "rise-of-the-reds",
+      "requires": [
+        "rise-of-the-reds@1.87-pb2.0"
+      ],
+      "support_url": "",
+      "type": "addon",
+      "version": "1"
+    },
+    {
+      "conflicts": [],
+      "cover_path": "",
+      "discord_url": "https://discord.gg/REcbv37",
+      "engine": "zerohour",
+      "external_archive": {
+        "sha256": "9a23d207866ba38ce484a1ec0242df36d635dc179918add13e37986a879da589",
+        "size": 913,
+        "url": "https://gen.insave.ovh/rotr/easter-eggs/HanPatchEasterEggs.zip"
+      },
+      "id": "hanpatch-easter-eggs",
+      "moddb_url": "https://www.moddb.com/mods/rise-of-the-reds-hanpatch",
+      "name": "HanPatch Easter Egg Units",
+      "news_url": "",
+      "parent_id": "hanpatch",
+      "requires": [
+        "hanpatch@32.2"
+      ],
+      "support_url": "",
+      "type": "addon",
+      "version": "1"
+    },
+    {
+      "conflicts": [],
+      "cover_path": "",
+      "discord_url": "",
+      "engine": "zerohour",
+      "external_files": [
+        {
+          "path": "VCR-Vanilla-Campaigns-Remastered-Public-v.1.871.big",
+          "sha256": "9b66375b0ee969f0d5d6f17214138fc4a97471cc1fc4464433a94b29af30eb1e",
+          "size": 117409126,
+          "url": "https://www.dropbox.com/scl/fi/fr2wdl9l7rvxfbqi32688/VCR-Vanilla-Campaigns-Remastered-Public-v.1.871.big?rlkey=6900m84vsmbmhdubgd8zdq4uv&st=fjx2todh&dl=1"
+        }
+      ],
+      "id": "vanilla-campaigns-remastered",
+      "moddb_url": "https://www.moddb.com/mods/rise-of-the-reds-hanpatch",
+      "name": "Vanilla Campaigns Remastered",
+      "news_url": "",
+      "parent_id": "hanpatch",
+      "requires": [
+        "hanpatch@32.2"
+      ],
+      "support_url": "",
+      "type": "addon",
+      "version": "1.871"
     }
   ],
   "schema_version": 1

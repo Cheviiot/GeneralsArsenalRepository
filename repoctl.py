@@ -136,9 +136,26 @@ def validate_content_path(value: str, label: str = "content path") -> str:
     return value
 
 
-def load_external_files(path: Path) -> list[dict[str, Any]]:
+def normalize_external_archive(value: Any, label: str = "external archive") -> dict[str, Any]:
+    if not isinstance(value, dict):
+        raise RepositoryError(f"{label} must be an object")
+    url = validate_https(str(value.get("url", "")), f"{label} URL", optional=False)
+    digest = str(value.get("sha256", "")).lower()
+    size = value.get("size")
+    if (len(digest) != 64 or any(character not in "0123456789abcdef" for character in digest)
+            or not isinstance(size, int) or size <= 0 or size > MODIFICATION_SIZE_LIMIT):
+        raise RepositoryError(f"{label} has invalid SHA-256 or size")
+    return {"url": url, "sha256": digest, "size": size}
+
+
+def load_external_delivery(path: Path) -> tuple[dict[str, Any] | None, list[dict[str, Any]]]:
     manifest = read_json(path)
+    archive = manifest.get("archive")
     files = manifest.get("files")
+    if bool(archive) == bool(files):
+        raise RepositoryError("external manifest must contain exactly one archive or file set")
+    if archive:
+        return normalize_external_archive(archive), []
     if not isinstance(files, list) or not files or len(files) > EXTERNAL_FILE_LIMIT:
         raise RepositoryError(f"external manifest must contain 1-{EXTERNAL_FILE_LIMIT} files")
     normalized: list[dict[str, Any]] = []
@@ -160,7 +177,7 @@ def load_external_files(path: Path) -> list[dict[str, Any]]:
             raise RepositoryError(f"external file {index} has invalid SHA-256 or size")
         total_size += size
         normalized.append({"path": content_path, "url": url, "sha256": digest, "size": size})
-    return normalized
+    return None, normalized
 
 
 def selector_parts(value: str) -> tuple[str, str]:
@@ -248,8 +265,13 @@ def catalog_item(item: dict[str, Any], config: dict[str, Any]) -> dict[str, Any]
         "Name": item["name"],
         "Version": item["version"],
     }
+    external_archive = item.get("external_archive")
     external_files = item.get("external_files", [])
-    if external_files:
+    if external_archive:
+        result["DownloadUrl"] = external_archive["url"]
+        result["SHA256"] = external_archive["sha256"]
+        result["Size"] = external_archive["size"]
+    elif external_files:
         result["Files"] = [
             {
                 "Path": file["path"],
@@ -320,11 +342,18 @@ def verify_state(root: Path, state: dict[str, Any], *, metadata_only: bool = Fal
                 raise RepositoryError(f"duplicate {field} selector for {identifier}@{version}")
             if any(selector_parts(selector)[0] == identifier for selector in normalized):
                 raise RepositoryError(f"self-referencing {field} selector for {identifier}@{version}")
+        external_archive = item.get("external_archive")
         external_files = item.get("external_files", [])
         package_path = str(item.get("package_path", ""))
-        if bool(external_files) == bool(package_path):
+        delivery_count = sum((bool(external_archive), bool(external_files), bool(package_path)))
+        if delivery_count != 1:
             raise RepositoryError(f"item must use exactly one delivery method: {identifier}@{version}")
-        if external_files:
+        if external_archive:
+            normalized_archive = normalize_external_archive(
+                external_archive, f"external archive for {identifier}@{version}")
+            if normalized_archive != external_archive:
+                raise RepositoryError(f"external archive is not normalized for {identifier}@{version}")
+        elif external_files:
             if not isinstance(external_files, list) or not external_files or len(external_files) > EXTERNAL_FILE_LIMIT:
                 raise RepositoryError(f"invalid external file set for {identifier}@{version}")
             seen_paths: set[str] = set()
@@ -489,9 +518,10 @@ def command_add(args: argparse.Namespace) -> None:
     package_relative: Path | None = None
     digest = ""
     size = 0
+    external_archive: dict[str, Any] | None = None
     external_files: list[dict[str, Any]] = []
     if args.external_manifest:
-        external_files = load_external_files(args.external_manifest.resolve())
+        external_archive, external_files = load_external_delivery(args.external_manifest.resolve())
     else:
         package_relative, digest, size = publish_object(root, args.package.resolve(), "packages", PACKAGE_EXTENSIONS)
     cover_relative = ""
@@ -512,7 +542,9 @@ def command_add(args: argparse.Namespace) -> None:
         "requires": [validate_selector(value, "requires") for value in args.requires],
         "conflicts": [validate_selector(value, "conflicts") for value in args.conflicts],
     }
-    if external_files:
+    if external_archive:
+        item["external_archive"] = external_archive
+    elif external_files:
         item["external_files"] = external_files
     else:
         assert package_relative is not None
@@ -704,7 +736,7 @@ def parser() -> argparse.ArgumentParser:
     delivery = add.add_mutually_exclusive_group(required=True)
     delivery.add_argument("--package", type=Path)
     delivery.add_argument("--external-manifest", type=Path,
-                          help="JSON file containing hash-pinned author-hosted files")
+                          help="JSON file containing a hash-pinned author-hosted archive or file set")
     add.add_argument("--cover", type=Path)
     add.add_argument("--parent", default="")
     add.add_argument("--moddb-url", default="")
