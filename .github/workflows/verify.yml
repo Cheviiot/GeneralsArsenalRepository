@@ -1,0 +1,22 @@
+name: Verify Arsenal repository
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify tracked repository metadata
+        run: python3 repoctl.py --root data verify --metadata-only
+      - name: Verify the published catalog and release protocol
+        env:
+          ARSENAL_REPOSITORY_CATALOG_URL: https://github.com/Cheviiot/GeneralsArsenalRepository/releases/latest/download/catalog.json
+        run: python3 -m unittest tests.test_remote_repository -v

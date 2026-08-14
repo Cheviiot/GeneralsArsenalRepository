@@ -1,0 +1,8 @@
+__pycache__/
+*.pyc
+node_modules/
+*.publishing
+data/public/v1/packages/*
+data/public/v1/covers/*
+!data/public/v1/packages/.gitkeep
+!data/public/v1/covers/.gitkeep
