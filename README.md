@@ -18,6 +18,11 @@ The launcher reads:
 https://github.com/Cheviiot/GeneralsArsenalRepository/releases/latest/download/catalog.json
 ```
 
+Catalog entries are data, not compiled launcher code. Adding, updating, or
+removing a mod, patch, or add-on requires no launcher rebuild or application
+release: **REFRESH** reads the newly published snapshot immediately, and the
+normal background refresh reads it after the 24-hour cache lifetime.
+
 GitHub redirects release downloads to its asset service. The native launcher
 follows that redirect and retains `HEAD`, byte-range resumption, ETag, and
 strong `If-Match` validation. GitHub currently limits an individual release asset to
@@ -69,6 +74,8 @@ available to old manifests and resumable downloads.
 - A `mod` has no parent.
 - A `patch` names its primary mod with `--parent`.
 - An `addon` may target a mod or patch with `--parent`, or remain global.
+- A data-only plug-in is published as an `addon`; native executable plug-ins
+  are intentionally unsupported.
 - IDs, versions, HTTPS information links, package hashes, sizes, and covers are
   validated before the catalog changes.
 
