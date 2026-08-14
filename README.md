@@ -74,6 +74,10 @@ available to old manifests and resumable downloads.
 - A `mod` has no parent.
 - A `patch` names its primary mod with `--parent`.
 - An `addon` may target a mod or patch with `--parent`, or remain global.
+- Repeatable `--requires id` or `--requires id@version` arguments describe
+  mandatory stack members. Repeatable `--conflicts id` or
+  `--conflicts id@version` arguments describe combinations the launcher must
+  reject before activation.
 - A data-only plug-in is published as an `addon`; native executable plug-ins
   are intentionally unsupported.
 - IDs, versions, HTTPS information links, package hashes, sizes, and covers are
@@ -82,6 +86,20 @@ available to old manifests and resumable downloads.
 Use `--moddb-url`, `--discord-url`, `--news-url`, and `--support-url` only for
 informational HTTPS pages. Installable content is always served from this
 repository.
+
+## Candidate ecosystems
+
+`data/candidates/*.json` records a reviewed dependency graph before any
+third-party archive is accepted for publication. Candidate files contain no
+package URL, hash, or mirrored content. `repoctl.py verify` validates their
+parents, exact-version requirements, conflicts, source pages, and publication
+status, while keeping them out of the public launcher catalog.
+
+The first candidate ecosystem is Rise of the Reds 1.87 PB 2.0 with separate
+HanPatch, AntiThesis, and Navy branches plus their compatible add-ons. Every
+entry remains `permission-required` until its author permits redistribution;
+the AntiThesis ControlBar Pro entry is additionally `runtime-blocked` because
+it requires GenTool, which Arsenal does not bundle or execute.
 
 ## Verification
 

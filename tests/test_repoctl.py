@@ -113,21 +113,69 @@ class RepositoryToolTests(unittest.TestCase):
             "--name", "Dynamic Mod", "--version", "1", "--package", str(self.package),
         )
         self.run_tool(
+            "add", "--engine", "zerohour", "--type", "addon", "--id", "dynamic-rival",
+            "--parent", "dynamic-mod", "--name", "Dynamic Rival", "--version", "1",
+            "--package", str(self.package), "--requires", "dynamic-mod@1",
+        )
+        self.run_tool(
             "add", "--engine", "zerohour", "--type", "patch", "--id", "dynamic-patch",
             "--parent", "dynamic-mod", "--name", "Dynamic Patch", "--version", "2",
-            "--package", str(self.package),
+            "--package", str(self.package), "--requires", "dynamic-mod@1",
         )
         self.run_tool(
             "add", "--engine", "zerohour", "--type", "addon", "--id", "dynamic-addon",
             "--parent", "dynamic-patch", "--name", "Dynamic Addon", "--version", "3",
-            "--package", str(self.package),
+            "--package", str(self.package), "--requires", "dynamic-patch@2",
+            "--conflicts", "dynamic-rival",
         )
         catalog = json.loads((self.root / "public/v1/catalog.json").read_text(encoding="utf-8"))
         items = {item["Id"]: item for item in catalog["Items"]}
-        self.assertEqual(set(items), {"dynamic-mod", "dynamic-patch", "dynamic-addon"})
+        self.assertEqual(set(items), {"dynamic-mod", "dynamic-patch", "dynamic-addon", "dynamic-rival"})
         self.assertEqual(items["dynamic-mod"]["Type"], "mod")
         self.assertEqual(items["dynamic-patch"]["ParentId"], "dynamic-mod")
+        self.assertEqual(items["dynamic-patch"]["Requires"], ["dynamic-mod@1"])
         self.assertEqual(items["dynamic-addon"]["ParentId"], "dynamic-patch")
+        self.assertEqual(items["dynamic-addon"]["Requires"], ["dynamic-patch@2"])
+        self.assertEqual(items["dynamic-addon"]["Conflicts"], ["dynamic-rival"])
+
+    def test_unknown_and_self_compatibility_selectors_are_rejected(self) -> None:
+        self.initialize()
+        result = self.run_tool(
+            "add", "--engine", "zerohour", "--type", "mod", "--id", "broken",
+            "--name", "Broken", "--version", "1", "--package", str(self.package),
+            "--requires", "missing@1", success=False,
+        )
+        self.assertIn("unknown requires selector", result.stderr)
+        result = self.run_tool(
+            "add", "--engine", "zerohour", "--type", "mod", "--id", "self",
+            "--name", "Self", "--version", "1", "--package", str(self.package),
+            "--conflicts", "self", success=False,
+        )
+        self.assertIn("self-referencing conflicts selector", result.stderr)
+
+    def test_candidate_graph_is_validated_without_publishing_packages(self) -> None:
+        self.initialize()
+        candidates = self.root / "candidates"
+        candidates.mkdir(parents=True, exist_ok=True)
+        (candidates / "example.json").write_text(json.dumps({
+            "schema_version": 1,
+            "engine": "zerohour",
+            "items": [
+                {
+                    "id": "base", "type": "mod", "name": "Base", "version": "1.0",
+                    "status": "permission-required", "project_url": "https://example.invalid/base",
+                },
+                {
+                    "id": "patch", "type": "patch", "name": "Patch", "version": "2.0",
+                    "parent_id": "base", "requires": ["base@1.0"], "conflicts": [],
+                    "status": "permission-required", "project_url": "https://example.invalid/patch",
+                },
+            ],
+        }), encoding="utf-8")
+        result = self.run_tool("verify")
+        self.assertIn("2 candidate entries", result.stdout)
+        payload = json.loads((self.root / "public/v1/catalog.json").read_text(encoding="utf-8"))
+        self.assertEqual(payload["Items"], [])
 
 
 if __name__ == "__main__":

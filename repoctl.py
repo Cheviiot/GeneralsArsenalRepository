@@ -26,9 +26,11 @@ SCHEMA_VERSION = 1
 CATALOG_PATH = Path("public/v1/catalog.json")
 STATE_PATH = Path("state/items.json")
 CONFIG_PATH = Path("repository.json")
+CANDIDATES_PATH = Path("candidates")
 PACKAGE_EXTENSIONS = {".zip", ".7z", ".rar", ".big", ".tar", ".gz", ".xz"}
 IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".webp"}
 SAFE_ID = re.compile(r"^[a-z0-9][a-z0-9.-]{0,95}$")
+SAFE_VERSION = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._+~-]{0,127}$")
 GITHUB_REPOSITORY = re.compile(r"^[A-Za-z0-9_.-]{1,39}/[A-Za-z0-9_.-]{1,100}$")
 GITHUB_RELEASE_ASSET_LIMIT = 2 * 1024 * 1024 * 1024
 
@@ -99,6 +101,29 @@ def validate_text(value: str, label: str, maximum: int = 160) -> str:
     if not value or len(value) > maximum or any(ord(character) < 32 for character in value):
         raise RepositoryError(f"{label} must contain 1-{maximum} printable characters")
     return value
+
+
+def validate_selector(value: str, label: str) -> str:
+    value = value.strip().lower()
+    identifier, separator, version = value.partition("@")
+    identifier = validate_id(identifier, label)
+    if not separator:
+        return identifier
+    if not version or "@" in version or not SAFE_VERSION.fullmatch(version):
+        raise RepositoryError(f"{label} must use id or id@version")
+    return f"{identifier}@{version}"
+
+
+def validate_version(value: str, label: str = "version") -> str:
+    value = value.strip()
+    if not SAFE_VERSION.fullmatch(value):
+        raise RepositoryError(f"{label} must match {SAFE_VERSION.pattern}")
+    return value
+
+
+def selector_parts(value: str) -> tuple[str, str]:
+    identifier, separator, version = value.partition("@")
+    return identifier, version if separator else ""
 
 
 def load_config(root: Path) -> dict[str, Any]:
@@ -196,6 +221,10 @@ def catalog_item(item: dict[str, Any], config: dict[str, Any]) -> dict[str, Any]
         value = item.get(state_name, "")
         if value:
             result[catalog_name] = github_object_url(config, value) if state_name == "cover_path" else value
+    for catalog_name, state_name in (("Requires", "requires"), ("Conflicts", "conflicts")):
+        values = item.get(state_name, [])
+        if values:
+            result[catalog_name] = values
     return result
 
 
@@ -211,13 +240,14 @@ def render_catalog(config: dict[str, Any], state: dict[str, Any]) -> dict[str, A
 def verify_state(root: Path, state: dict[str, Any], *, metadata_only: bool = False) -> None:
     seen: set[tuple[str, str, str]] = set()
     known_ids: set[tuple[str, str]] = set()
+    known_versions: set[tuple[str, str, str]] = set()
     for item in state["items"]:
         if not isinstance(item, dict):
             raise RepositoryError("state contains a non-object item")
         engine = str(item.get("engine", ""))
         item_type = str(item.get("type", ""))
         identifier = validate_id(str(item.get("id", "")), "item id")
-        version = validate_text(str(item.get("version", "")), "version", 128)
+        version = validate_version(str(item.get("version", "")))
         validate_text(str(item.get("name", "")), "name")
         if engine not in {"generals", "zerohour"} or item_type not in {"mod", "patch", "addon"}:
             raise RepositoryError(f"invalid engine or type for {identifier}@{version}")
@@ -226,6 +256,16 @@ def verify_state(root: Path, state: dict[str, Any], *, metadata_only: bool = Fal
             raise RepositoryError(f"duplicate item: {engine}/{identifier}@{version}")
         seen.add(key)
         known_ids.add((engine, identifier))
+        known_versions.add((engine, identifier, version.lower()))
+        for field in ("requires", "conflicts"):
+            selectors = item.get(field, [])
+            if not isinstance(selectors, list):
+                raise RepositoryError(f"{field} must be a list for {identifier}@{version}")
+            normalized = [validate_selector(str(selector), field) for selector in selectors]
+            if len(normalized) != len(set(normalized)):
+                raise RepositoryError(f"duplicate {field} selector for {identifier}@{version}")
+            if any(selector_parts(selector)[0] == identifier for selector in normalized):
+                raise RepositoryError(f"self-referencing {field} selector for {identifier}@{version}")
         relative = Path(str(item.get("package_path", "")))
         if relative.is_absolute() or ".." in relative.parts or relative.parts[:1] != ("packages",):
             raise RepositoryError(f"unsafe package path for {identifier}@{version}")
@@ -261,6 +301,67 @@ def verify_state(root: Path, state: dict[str, Any], *, metadata_only: bool = Fal
         parent = str(item.get("parent_id", ""))
         if parent and (str(item["engine"]), parent) not in known_ids:
             raise RepositoryError(f"unknown parent {parent} for {item['id']}@{item['version']}")
+        for field in ("requires", "conflicts"):
+            for selector in item.get(field, []):
+                identifier, version = selector_parts(validate_selector(str(selector), field))
+                engine = str(item["engine"])
+                if (engine, identifier) not in known_ids or (
+                        version and (engine, identifier, version) not in known_versions):
+                    raise RepositoryError(
+                        f"unknown {field} selector {selector} for {item['id']}@{item['version']}"
+                    )
+
+
+def verify_candidates(root: Path) -> int:
+    candidates_root = root / CANDIDATES_PATH
+    if not candidates_root.exists():
+        return 0
+    count = 0
+    for path in sorted(candidates_root.glob("*.json")):
+        candidate = read_json(path)
+        if candidate.get("schema_version") != 1 or candidate.get("engine") not in {"generals", "zerohour"}:
+            raise RepositoryError(f"unsupported or malformed candidate manifest: {path}")
+        items = candidate.get("items")
+        if not isinstance(items, list) or not items or len(items) > 1000:
+            raise RepositoryError(f"candidate manifest must contain 1-1000 items: {path}")
+        known_ids: set[str] = set()
+        known_versions: set[tuple[str, str]] = set()
+        for item in items:
+            if not isinstance(item, dict):
+                raise RepositoryError(f"candidate manifest contains a non-object item: {path}")
+            identifier = validate_id(str(item.get("id", "")), "candidate id")
+            version = validate_version(str(item.get("version", "")), "candidate version").lower()
+            if (identifier, version) in known_versions:
+                raise RepositoryError(f"duplicate candidate item {identifier}@{version}: {path}")
+            if item.get("type") not in {"mod", "patch", "addon"}:
+                raise RepositoryError(f"invalid candidate type for {identifier}@{version}: {path}")
+            if item.get("status") not in {"permission-required", "runtime-blocked", "ready-for-package-validation"}:
+                raise RepositoryError(f"invalid candidate status for {identifier}@{version}: {path}")
+            validate_text(str(item.get("name", "")), "candidate name")
+            validate_https(str(item.get("project_url", "")), "candidate project_url", optional=False)
+            validate_https(str(item.get("metadata_url", "")), "candidate metadata_url")
+            if any(key in item for key in ("download_url", "package", "package_path", "sha256")):
+                raise RepositoryError(f"candidate manifests cannot publish package metadata: {identifier}@{version}")
+            known_ids.add(identifier)
+            known_versions.add((identifier, version))
+        for item in items:
+            identifier = str(item["id"])
+            parent = str(item.get("parent_id", ""))
+            if parent and validate_id(parent, "candidate parent") not in known_ids:
+                raise RepositoryError(f"unknown candidate parent {parent} for {identifier}: {path}")
+            for field in ("requires", "conflicts"):
+                selectors = item.get(field, [])
+                if not isinstance(selectors, list):
+                    raise RepositoryError(f"candidate {field} must be a list for {identifier}: {path}")
+                normalized = [validate_selector(str(selector), f"candidate {field}") for selector in selectors]
+                if len(normalized) != len(set(normalized)):
+                    raise RepositoryError(f"duplicate candidate {field} selector for {identifier}: {path}")
+                for selector in normalized:
+                    target, version = selector_parts(selector)
+                    if target == identifier or target not in known_ids or (version and (target, version) not in known_versions):
+                        raise RepositoryError(f"invalid candidate {field} selector {selector} for {identifier}: {path}")
+        count += len(items)
+    return count
 
 
 def command_init(args: argparse.Namespace) -> None:
@@ -279,6 +380,7 @@ def command_init(args: argparse.Namespace) -> None:
     atomic_json(state_path, {"schema_version": SCHEMA_VERSION, "items": []})
     (root / "public/v1/packages").mkdir(parents=True, exist_ok=True)
     (root / "public/v1/covers").mkdir(parents=True, exist_ok=True)
+    (root / CANDIDATES_PATH).mkdir(parents=True, exist_ok=True)
     atomic_json(root / CATALOG_PATH, render_catalog(config, load_state(root)))
     (root / "public/healthz").write_text("ok\n", encoding="utf-8")
 
@@ -300,7 +402,7 @@ def command_add(args: argparse.Namespace) -> None:
     identifier = validate_id(args.id, "id")
     engine = args.engine
     item_type = args.type
-    version = validate_text(args.version, "version", 128)
+    version = validate_version(args.version)
     name = validate_text(args.name, "name")
     parent = validate_id(args.parent, "parent") if args.parent else ""
     if item_type == "mod" and parent:
@@ -324,6 +426,8 @@ def command_add(args: argparse.Namespace) -> None:
         "discord_url": validate_https(args.discord_url, "discord_url"),
         "news_url": validate_https(args.news_url, "news_url"),
         "support_url": validate_https(args.support_url, "support_url"),
+        "requires": [validate_selector(value, "requires") for value in args.requires],
+        "conflicts": [validate_selector(value, "conflicts") for value in args.conflicts],
     }
     key = item_key(item)
     matches = [index for index, existing in enumerate(state["items"]) if item_key(existing) == key]
@@ -359,6 +463,7 @@ def command_publish(args: argparse.Namespace) -> None:
     config = load_config(root)
     state = load_state(root)
     verify_state(root, state)
+    verify_candidates(root)
     atomic_json(root / CATALOG_PATH, render_catalog(config, state))
 
 
@@ -367,12 +472,13 @@ def command_verify(args: argparse.Namespace) -> None:
     config = load_config(root)
     state = load_state(root)
     verify_state(root, state, metadata_only=args.metadata_only)
+    candidate_count = verify_candidates(root)
     expected = render_catalog(config, state)
     actual = read_json(root / CATALOG_PATH)
     if actual != expected:
         raise RepositoryError("published catalog does not match repository state; run publish")
     scope = "metadata" if args.metadata_only else "all referenced objects"
-    print(f"OK: {len(state['items'])} catalog entries and {scope} are valid")
+    print(f"OK: {len(state['items'])} catalog entries, {candidate_count} candidate entries, and {scope} are valid")
 
 
 def run_gh(arguments: list[str], *, check: bool = True) -> subprocess.CompletedProcess[str]:
@@ -450,6 +556,7 @@ def command_publish_github(args: argparse.Namespace) -> None:
     config = load_config(root)
     state = load_state(root)
     verify_state(root, state)
+    verify_candidates(root)
     repository = config["github_repository"]
     viewed = run_gh(["repo", "view", repository, "--json", "nameWithOwner"], check=False)
     if viewed.returncode != 0:
@@ -511,6 +618,8 @@ def parser() -> argparse.ArgumentParser:
     add.add_argument("--discord-url", default="")
     add.add_argument("--news-url", default="")
     add.add_argument("--support-url", default="")
+    add.add_argument("--requires", action="append", default=[], help="required id or exact id@version")
+    add.add_argument("--conflicts", action="append", default=[], help="conflicting id or exact id@version")
     add.add_argument("--replace", action="store_true")
     add.set_defaults(handler=command_add)
 

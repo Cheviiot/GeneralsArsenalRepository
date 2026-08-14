@@ -1,0 +1,160 @@
+{
+  "schema_version": 1,
+  "engine": "zerohour",
+  "ecosystem": "Rise of the Reds",
+  "notes": "Candidate metadata only. No third-party package is published until its author grants redistribution permission and the archive passes Arsenal validation.",
+  "items": [
+    {
+      "id": "rise-of-the-reds",
+      "type": "mod",
+      "name": "Rise of the Reds",
+      "version": "1.87-pb2.0",
+      "status": "permission-required",
+      "project_url": "https://www.moddb.com/mods/rise-of-the-reds",
+      "metadata_url": "https://raw.githubusercontent.com/alanblack166/Rise-of-the-Reds/master/GenLauncherData.yaml",
+      "requires": [],
+      "conflicts": []
+    },
+    {
+      "id": "hanpatch",
+      "type": "patch",
+      "name": "HanPatch",
+      "version": "32.2",
+      "parent_id": "rise-of-the-reds",
+      "status": "permission-required",
+      "project_url": "https://www.moddb.com/mods/rise-of-the-reds-hanpatch",
+      "metadata_url": "https://raw.githubusercontent.com/alanblack166/hanpatch-manifest/master/GenLauncherData.yaml",
+      "requires": [
+        "rise-of-the-reds@1.87-pb2.0"
+      ],
+      "conflicts": [
+        "antithesis-patch",
+        "rotr-navy"
+      ]
+    },
+    {
+      "id": "antithesis-patch",
+      "type": "patch",
+      "name": "AntiThesis Patch",
+      "version": "0.7",
+      "parent_id": "rise-of-the-reds",
+      "status": "permission-required",
+      "project_url": "https://www.moddb.com/mods/rise-of-the-reds-anti-thesis-patch",
+      "metadata_url": "https://www.moddb.com/mods/rise-of-the-reds-anti-thesis-patch/downloads/antithesispatch-rotr-v07",
+      "requires": [
+        "rise-of-the-reds@1.87-pb2.0"
+      ],
+      "conflicts": [
+        "hanpatch",
+        "rotr-navy"
+      ]
+    },
+    {
+      "id": "rotr-navy",
+      "type": "patch",
+      "name": "Rise of the Reds Navy",
+      "version": "2.0.3",
+      "parent_id": "rise-of-the-reds",
+      "status": "permission-required",
+      "project_url": "https://www.moddb.com/addons/rise-of-the-reds-navy-20",
+      "metadata_url": "https://raw.githubusercontent.com/rommel917/rotr-navy-genlauncher/master/ROTR-NAVY.yaml",
+      "requires": [
+        "rise-of-the-reds@1.87-pb2.0"
+      ],
+      "conflicts": [
+        "hanpatch",
+        "antithesis-patch"
+      ]
+    },
+    {
+      "id": "rotr-controlbar-18",
+      "type": "addon",
+      "name": "ROTR Controlbar Pro 18 Button",
+      "version": "1",
+      "parent_id": "rise-of-the-reds",
+      "status": "permission-required",
+      "project_url": "https://www.moddb.com/mods/rise-of-the-reds",
+      "metadata_url": "https://raw.githubusercontent.com/alanblack166/rotr-18-button-controlbar-pro-manifest/main/GenLauncherData.yaml",
+      "requires": [
+        "rise-of-the-reds@1.87-pb2.0"
+      ],
+      "conflicts": [
+        "antithesis-patch"
+      ]
+    },
+    {
+      "id": "rotr-mirage-tank",
+      "type": "addon",
+      "name": "ROTR Mirage Tank",
+      "version": "4.5.6",
+      "parent_id": "rise-of-the-reds",
+      "status": "permission-required",
+      "project_url": "https://www.moddb.com/mods/rise-of-the-reds/addons/rotr-mirage-tank-mod-v45",
+      "metadata_url": "",
+      "requires": [
+        "rise-of-the-reds@1.87-pb2.0"
+      ],
+      "conflicts": [
+        "hanpatch",
+        "antithesis-patch",
+        "rotr-navy"
+      ]
+    },
+    {
+      "id": "hanpatch-easter-eggs",
+      "type": "addon",
+      "name": "HanPatch Easter Egg Units",
+      "version": "1",
+      "parent_id": "hanpatch",
+      "status": "permission-required",
+      "project_url": "https://www.moddb.com/mods/rise-of-the-reds-hanpatch",
+      "metadata_url": "https://raw.githubusercontent.com/alanblack166/hanpatch-easter-egg-addon-manifest/master/GenLauncherData.yaml",
+      "requires": [
+        "hanpatch@32.2"
+      ],
+      "conflicts": []
+    },
+    {
+      "id": "vanilla-campaigns-remastered",
+      "type": "addon",
+      "name": "Vanilla Campaigns Remastered",
+      "version": "1.862",
+      "parent_id": "hanpatch",
+      "status": "permission-required",
+      "project_url": "https://www.moddb.com/mods/rise-of-the-reds-hanpatch",
+      "metadata_url": "https://raw.githubusercontent.com/StanislavSaw/Vanilla-Campaigns-Remastered---Manifest-file/master/Vanilla-Campaigns-Remastered---Manifest-file.yaml",
+      "requires": [
+        "hanpatch@32.2"
+      ],
+      "conflicts": []
+    },
+    {
+      "id": "atp-boss-addon",
+      "type": "addon",
+      "name": "AntiThesis Boss Addon",
+      "version": "1",
+      "parent_id": "antithesis-patch",
+      "status": "permission-required",
+      "project_url": "https://www.moddb.com/mods/rise-of-the-reds-anti-thesis-patch",
+      "metadata_url": "https://raw.githubusercontent.com/FlamerYeeter/ATP-BOSS-ADDON/main/GenLauncherData.yaml",
+      "requires": [
+        "antithesis-patch@0.7"
+      ],
+      "conflicts": []
+    },
+    {
+      "id": "atp-controlbar-pro",
+      "type": "addon",
+      "name": "AntiThesis ControlBar Pro",
+      "version": "1",
+      "parent_id": "antithesis-patch",
+      "status": "runtime-blocked",
+      "project_url": "https://www.moddb.com/mods/rise-of-the-reds-anti-thesis-patch",
+      "metadata_url": "https://raw.githubusercontent.com/FlamerYeeter/ATP-CBP-ADDON/main/GenLauncherData.yaml",
+      "requires": [
+        "antithesis-patch@0.7"
+      ],
+      "conflicts": []
+    }
+  ]
+}
