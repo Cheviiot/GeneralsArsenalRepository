@@ -59,11 +59,11 @@ class RemoteRepositoryTests(unittest.TestCase):
             catalog = json.load(response)
         if not catalog["Items"]:
             self.skipTest("repository has no packages yet")
-        package_url = catalog["Items"][0]["DownloadUrl"]
-        self.assertRegex(
-            package_url,
-            r"^https://github\.com/[^/]+/[^/]+/releases/download/objects-[0-9a-f]{2}/[0-9a-f]{64}\.[a-z0-9]+$",
-        )
+        first_item = catalog["Items"][0]
+        package_url = first_item.get("DownloadUrl")
+        if not package_url:
+            package_url = first_item["Files"][0]["DownloadUrl"]
+        self.assertTrue(package_url.startswith("https://"))
         self.assert_resumable(package_url)
 
     def test_private_repository_state_is_not_a_release_asset(self) -> None:

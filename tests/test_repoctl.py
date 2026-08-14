@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import json
+import hashlib
 import subprocess
 import sys
 import tempfile
@@ -137,6 +138,52 @@ class RepositoryToolTests(unittest.TestCase):
         self.assertEqual(items["dynamic-addon"]["ParentId"], "dynamic-patch")
         self.assertEqual(items["dynamic-addon"]["Requires"], ["dynamic-patch@2"])
         self.assertEqual(items["dynamic-addon"]["Conflicts"], ["dynamic-rival"])
+
+    def test_author_hosted_file_set_is_published_without_mirroring_content(self) -> None:
+        self.initialize()
+        first = b"first immutable file"
+        second = b"second immutable file"
+        manifest = Path(self.temporary.name) / "external-files.json"
+        manifest.write_text(json.dumps({"files": [
+            {
+                "path": "!AuthorCore.gib",
+                "url": "https://author.example.invalid/releases/core.gib",
+                "sha256": hashlib.sha256(first).hexdigest(),
+                "size": len(first),
+            },
+            {
+                "path": "Data/Maps.big",
+                "url": "https://author.example.invalid/releases/maps.big",
+                "sha256": hashlib.sha256(second).hexdigest(),
+                "size": len(second),
+            },
+        ]}), encoding="utf-8")
+        self.run_tool(
+            "add", "--engine", "zerohour", "--type", "mod", "--id", "author-mod",
+            "--name", "Author Mod", "--version", "1.0", "--external-manifest", str(manifest),
+        )
+        catalog = json.loads((self.root / "public/v1/catalog.json").read_text(encoding="utf-8"))
+        item = catalog["Items"][0]
+        self.assertNotIn("DownloadUrl", item)
+        self.assertNotIn("SHA256", item)
+        self.assertEqual([entry["Path"] for entry in item["Files"]], ["!AuthorCore.gib", "Data/Maps.big"])
+        self.assertFalse(any((self.root / "public/v1/packages").rglob("*")))
+        self.run_tool("verify")
+
+    def test_unsafe_external_file_set_is_rejected(self) -> None:
+        self.initialize()
+        manifest = Path(self.temporary.name) / "unsafe-external-files.json"
+        manifest.write_text(json.dumps({"files": [{
+            "path": "../escape.dll",
+            "url": "https://author.example.invalid/escape.dll",
+            "sha256": "0" * 64,
+            "size": 1,
+        }]}), encoding="utf-8")
+        result = self.run_tool(
+            "add", "--engine", "zerohour", "--type", "mod", "--id", "unsafe-external",
+            "--name", "Unsafe", "--version", "1", "--external-manifest", str(manifest), success=False,
+        )
+        self.assertIn("safe relative path", result.stderr)
 
     def test_unknown_and_self_compatibility_selectors_are_rejected(self) -> None:
         self.initialize()

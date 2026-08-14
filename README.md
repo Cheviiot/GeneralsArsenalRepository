@@ -1,9 +1,10 @@
 # Generals: Arsenal Repository
 
 This is the authoritative modification repository for Generals: Arsenal. It is
-hosted entirely by the public `Cheviiot/GeneralsArsenalRepository` GitHub
-repository and does not proxy GenLauncher catalogs, third-party S3 buckets, or
-temporary file-sharing links.
+hosted by the public `Cheviiot/GeneralsArsenalRepository` GitHub repository. It
+does not proxy GenLauncher catalogs. Packages can either be immutable GitHub
+Release assets or immutable author-hosted HTTPS file sets whose path, size, and
+SHA-256 are pinned in the Arsenal catalog.
 
 The repository is database-free:
 
@@ -49,6 +50,36 @@ python3 repoctl.py --root data add \
   --cover /path/to/cover.png
 ```
 
+For a release that its author already publishes as multiple files, create a
+small JSON manifest instead of repackaging or mirroring it:
+
+```json
+{
+  "files": [
+    {
+      "path": "!ExampleCore.gib",
+      "url": "https://author.example/releases/!ExampleCore.gib",
+      "sha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+      "size": 123456
+    }
+  ]
+}
+```
+
+```bash
+python3 repoctl.py --root data add \
+  --engine zerohour \
+  --type mod \
+  --id example-author-mod \
+  --name "Example Author Mod" \
+  --version 1.0 \
+  --external-manifest data/sources/example-author-mod.json
+```
+
+The launcher downloads up to four files concurrently, retains a separate
+resumable partial for each one, verifies every SHA-256, and only then publishes
+the installed modification atomically.
+
 Verify and publish it:
 
 ```bash
@@ -84,8 +115,9 @@ available to old manifests and resumable downloads.
   validated before the catalog changes.
 
 Use `--moddb-url`, `--discord-url`, `--news-url`, and `--support-url` only for
-informational HTTPS pages. Installable content is always served from this
-repository.
+informational HTTPS pages. An external file-set URL is accepted only together
+with a non-zero size and a full SHA-256 digest; credentials and non-HTTPS URLs
+are rejected.
 
 ## Candidate ecosystems
 
@@ -95,11 +127,13 @@ package URL, hash, or mirrored content. `repoctl.py verify` validates their
 parents, exact-version requirements, conflicts, source pages, and publication
 status, while keeping them out of the public launcher catalog.
 
-The first candidate ecosystem is Rise of the Reds 1.87 PB 2.0 with separate
-HanPatch, AntiThesis, and Navy branches plus their compatible add-ons. Every
-entry remains `permission-required` until its author permits redistribution;
-the AntiThesis ControlBar Pro entry is additionally `runtime-blocked` because
-it requires GenTool, which Arsenal does not bundle or execute.
+The first ecosystem is Rise of the Reds 1.87 PB 2.0 with separate HanPatch,
+AntiThesis, and Navy branches plus their compatible add-ons. The base mod is
+published as a hash-pinned set of the 18 files served by its existing official
+host, so Arsenal does not redistribute or alter it. Other entries stay hidden
+until their delivery and runtime compatibility are validated. AntiThesis
+ControlBar Pro is additionally `runtime-blocked` because it requires GenTool,
+which Arsenal does not bundle or execute.
 
 ## Verification
 

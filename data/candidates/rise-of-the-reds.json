@@ -2,14 +2,14 @@
   "schema_version": 1,
   "engine": "zerohour",
   "ecosystem": "Rise of the Reds",
-  "notes": "Candidate metadata only. No third-party package is published until its author grants redistribution permission and the archive passes Arsenal validation.",
+  "notes": "Compatibility graph for the ROTR ecosystem. Published author-hosted entries pin every official HTTPS file by size and SHA-256 without redistributing the files through Arsenal.",
   "items": [
     {
       "id": "rise-of-the-reds",
       "type": "mod",
       "name": "Rise of the Reds",
       "version": "1.87-pb2.0",
-      "status": "permission-required",
+      "status": "published-author-hosted",
       "project_url": "https://www.moddb.com/mods/rise-of-the-reds",
       "metadata_url": "https://raw.githubusercontent.com/alanblack166/Rise-of-the-Reds/master/GenLauncherData.yaml",
       "requires": [],

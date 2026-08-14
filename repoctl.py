@@ -18,6 +18,7 @@ import subprocess
 import sys
 import tempfile
 from pathlib import Path
+from pathlib import PurePosixPath
 from typing import Any
 from urllib.parse import urlparse
 
@@ -33,6 +34,8 @@ SAFE_ID = re.compile(r"^[a-z0-9][a-z0-9.-]{0,95}$")
 SAFE_VERSION = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._+~-]{0,127}$")
 GITHUB_REPOSITORY = re.compile(r"^[A-Za-z0-9_.-]{1,39}/[A-Za-z0-9_.-]{1,100}$")
 GITHUB_RELEASE_ASSET_LIMIT = 2 * 1024 * 1024 * 1024
+MODIFICATION_SIZE_LIMIT = 20 * 1024 * 1024 * 1024
+EXTERNAL_FILE_LIMIT = 4096
 
 
 class RepositoryError(RuntimeError):
@@ -121,6 +124,45 @@ def validate_version(value: str, label: str = "version") -> str:
     return value
 
 
+def validate_content_path(value: str, label: str = "content path") -> str:
+    if (not value or len(value) > 1024 or "\\" in value or ":" in value
+            or any(ord(character) < 32 for character in value)):
+        raise RepositoryError(f"{label} is not a safe relative path")
+    path = PurePosixPath(value)
+    if path.is_absolute() or str(path) != value or any(part in {"", ".", ".."} for part in path.parts):
+        raise RepositoryError(f"{label} is not a safe relative path")
+    if path.suffix.lower() in {".exe", ".dll", ".so", ".dylib", ".asi"}:
+        raise RepositoryError(f"{label} uses a forbidden executable extension")
+    return value
+
+
+def load_external_files(path: Path) -> list[dict[str, Any]]:
+    manifest = read_json(path)
+    files = manifest.get("files")
+    if not isinstance(files, list) or not files or len(files) > EXTERNAL_FILE_LIMIT:
+        raise RepositoryError(f"external manifest must contain 1-{EXTERNAL_FILE_LIMIT} files")
+    normalized: list[dict[str, Any]] = []
+    seen_paths: set[str] = set()
+    total_size = 0
+    for index, item in enumerate(files):
+        if not isinstance(item, dict):
+            raise RepositoryError(f"external file {index} must be an object")
+        content_path = validate_content_path(str(item.get("path", "")), f"external file {index} path")
+        path_key = content_path.casefold()
+        if path_key in seen_paths:
+            raise RepositoryError(f"duplicate external content path: {content_path}")
+        seen_paths.add(path_key)
+        url = validate_https(str(item.get("url", "")), f"external file {index} URL", optional=False)
+        digest = str(item.get("sha256", "")).lower()
+        size = item.get("size")
+        if (len(digest) != 64 or any(character not in "0123456789abcdef" for character in digest)
+                or not isinstance(size, int) or size <= 0 or size > MODIFICATION_SIZE_LIMIT - total_size):
+            raise RepositoryError(f"external file {index} has invalid SHA-256 or size")
+        total_size += size
+        normalized.append({"path": content_path, "url": url, "sha256": digest, "size": size})
+    return normalized
+
+
 def selector_parts(value: str) -> tuple[str, str]:
     identifier, separator, version = value.partition("@")
     return identifier, version if separator else ""
@@ -205,10 +247,22 @@ def catalog_item(item: dict[str, Any], config: dict[str, Any]) -> dict[str, Any]
         "Type": item["type"],
         "Name": item["name"],
         "Version": item["version"],
-        "DownloadUrl": github_object_url(config, item["package_path"]),
-        "SHA256": item["sha256"],
-        "Size": item["size"],
     }
+    external_files = item.get("external_files", [])
+    if external_files:
+        result["Files"] = [
+            {
+                "Path": file["path"],
+                "DownloadUrl": file["url"],
+                "SHA256": file["sha256"],
+                "Size": file["size"],
+            }
+            for file in external_files
+        ]
+    else:
+        result["DownloadUrl"] = github_object_url(config, item["package_path"])
+        result["SHA256"] = item["sha256"]
+        result["Size"] = item["size"]
     optional = {
         "ParentId": "parent_id",
         "CoverUrl": "cover_path",
@@ -266,20 +320,44 @@ def verify_state(root: Path, state: dict[str, Any], *, metadata_only: bool = Fal
                 raise RepositoryError(f"duplicate {field} selector for {identifier}@{version}")
             if any(selector_parts(selector)[0] == identifier for selector in normalized):
                 raise RepositoryError(f"self-referencing {field} selector for {identifier}@{version}")
-        relative = Path(str(item.get("package_path", "")))
-        if relative.is_absolute() or ".." in relative.parts or relative.parts[:1] != ("packages",):
-            raise RepositoryError(f"unsafe package path for {identifier}@{version}")
-        expected_digest = str(item.get("sha256", ""))
-        expected_size = item.get("size")
-        if (len(expected_digest) != 64 or any(character not in "0123456789abcdef" for character in expected_digest)
-                or relative.stem != expected_digest or not isinstance(expected_size, int)
-                or expected_size <= 0 or expected_size > GITHUB_RELEASE_ASSET_LIMIT):
-            raise RepositoryError(f"package integrity mismatch for {identifier}@{version}")
-        if not metadata_only:
-            package = root / "public/v1" / relative
-            digest, size = sha256_file(package)
-            if digest != expected_digest or size != expected_size:
+        external_files = item.get("external_files", [])
+        package_path = str(item.get("package_path", ""))
+        if bool(external_files) == bool(package_path):
+            raise RepositoryError(f"item must use exactly one delivery method: {identifier}@{version}")
+        if external_files:
+            if not isinstance(external_files, list) or not external_files or len(external_files) > EXTERNAL_FILE_LIMIT:
+                raise RepositoryError(f"invalid external file set for {identifier}@{version}")
+            seen_paths: set[str] = set()
+            total_size = 0
+            for index, external in enumerate(external_files):
+                if not isinstance(external, dict):
+                    raise RepositoryError(f"invalid external file {index} for {identifier}@{version}")
+                content_path = validate_content_path(str(external.get("path", "")))
+                if content_path.casefold() in seen_paths:
+                    raise RepositoryError(f"duplicate external content path for {identifier}@{version}")
+                seen_paths.add(content_path.casefold())
+                validate_https(str(external.get("url", "")), "external file URL", optional=False)
+                digest = str(external.get("sha256", ""))
+                size = external.get("size")
+                if (len(digest) != 64 or any(character not in "0123456789abcdef" for character in digest)
+                        or not isinstance(size, int) or size <= 0 or size > MODIFICATION_SIZE_LIMIT - total_size):
+                    raise RepositoryError(f"external file integrity mismatch for {identifier}@{version}")
+                total_size += size
+        else:
+            relative = Path(package_path)
+            if relative.is_absolute() or ".." in relative.parts or relative.parts[:1] != ("packages",):
+                raise RepositoryError(f"unsafe package path for {identifier}@{version}")
+            expected_digest = str(item.get("sha256", ""))
+            expected_size = item.get("size")
+            if (len(expected_digest) != 64 or any(character not in "0123456789abcdef" for character in expected_digest)
+                    or relative.stem != expected_digest or not isinstance(expected_size, int)
+                    or expected_size <= 0 or expected_size > GITHUB_RELEASE_ASSET_LIMIT):
                 raise RepositoryError(f"package integrity mismatch for {identifier}@{version}")
+            if not metadata_only:
+                package = root / "public/v1" / relative
+                digest, size = sha256_file(package)
+                if digest != expected_digest or size != expected_size:
+                    raise RepositoryError(f"package integrity mismatch for {identifier}@{version}")
         cover_path = str(item.get("cover_path", ""))
         if cover_path:
             relative_cover = Path(cover_path)
@@ -335,7 +413,8 @@ def verify_candidates(root: Path) -> int:
                 raise RepositoryError(f"duplicate candidate item {identifier}@{version}: {path}")
             if item.get("type") not in {"mod", "patch", "addon"}:
                 raise RepositoryError(f"invalid candidate type for {identifier}@{version}: {path}")
-            if item.get("status") not in {"permission-required", "runtime-blocked", "ready-for-package-validation"}:
+            if item.get("status") not in {
+                    "permission-required", "runtime-blocked", "ready-for-package-validation", "published-author-hosted"}:
                 raise RepositoryError(f"invalid candidate status for {identifier}@{version}: {path}")
             validate_text(str(item.get("name", "")), "candidate name")
             validate_https(str(item.get("project_url", "")), "candidate project_url", optional=False)
@@ -407,7 +486,14 @@ def command_add(args: argparse.Namespace) -> None:
     parent = validate_id(args.parent, "parent") if args.parent else ""
     if item_type == "mod" and parent:
         raise RepositoryError("a primary mod cannot have a parent")
-    package_relative, digest, size = publish_object(root, args.package.resolve(), "packages", PACKAGE_EXTENSIONS)
+    package_relative: Path | None = None
+    digest = ""
+    size = 0
+    external_files: list[dict[str, Any]] = []
+    if args.external_manifest:
+        external_files = load_external_files(args.external_manifest.resolve())
+    else:
+        package_relative, digest, size = publish_object(root, args.package.resolve(), "packages", PACKAGE_EXTENSIONS)
     cover_relative = ""
     if args.cover:
         cover_relative = publish_object(root, args.cover.resolve(), "covers", IMAGE_EXTENSIONS)[0].relative_to("public/v1").as_posix()
@@ -418,9 +504,6 @@ def command_add(args: argparse.Namespace) -> None:
         "parent_id": parent,
         "name": name,
         "version": version,
-        "package_path": package_relative.relative_to("public/v1").as_posix(),
-        "sha256": digest,
-        "size": size,
         "cover_path": cover_relative,
         "moddb_url": validate_https(args.moddb_url, "moddb_url"),
         "discord_url": validate_https(args.discord_url, "discord_url"),
@@ -429,6 +512,13 @@ def command_add(args: argparse.Namespace) -> None:
         "requires": [validate_selector(value, "requires") for value in args.requires],
         "conflicts": [validate_selector(value, "conflicts") for value in args.conflicts],
     }
+    if external_files:
+        item["external_files"] = external_files
+    else:
+        assert package_relative is not None
+        item["package_path"] = package_relative.relative_to("public/v1").as_posix()
+        item["sha256"] = digest
+        item["size"] = size
     key = item_key(item)
     matches = [index for index, existing in enumerate(state["items"]) if item_key(existing) == key]
     if matches and not args.replace:
@@ -563,7 +653,7 @@ def command_publish_github(args: argparse.Namespace) -> None:
         raise RepositoryError(f"GitHub repository is not accessible: {repository}")
     atomic_json(root / CATALOG_PATH, render_catalog(config, state))
     object_paths = {
-        str(item[field])
+        str(item.get(field, ""))
         for item in state["items"]
         for field in ("package_path", "cover_path")
         if item.get(field)
@@ -611,7 +701,10 @@ def parser() -> argparse.ArgumentParser:
     add.add_argument("--id", required=True)
     add.add_argument("--name", required=True)
     add.add_argument("--version", required=True)
-    add.add_argument("--package", type=Path, required=True)
+    delivery = add.add_mutually_exclusive_group(required=True)
+    delivery.add_argument("--package", type=Path)
+    delivery.add_argument("--external-manifest", type=Path,
+                          help="JSON file containing hash-pinned author-hosted files")
     add.add_argument("--cover", type=Path)
     add.add_argument("--parent", default="")
     add.add_argument("--moddb-url", default="")
