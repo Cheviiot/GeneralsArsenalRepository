@@ -267,7 +267,10 @@ def catalog_item(item: dict[str, Any], config: dict[str, Any]) -> dict[str, Any]
     }
     external_archive = item.get("external_archive")
     external_files = item.get("external_files", [])
-    if external_archive:
+    generator = str(item.get("generator", ""))
+    if generator:
+        result["Generator"] = generator
+    elif external_archive:
         result["DownloadUrl"] = external_archive["url"]
         result["SHA256"] = external_archive["sha256"]
         result["Size"] = external_archive["size"]
@@ -345,10 +348,14 @@ def verify_state(root: Path, state: dict[str, Any], *, metadata_only: bool = Fal
         external_archive = item.get("external_archive")
         external_files = item.get("external_files", [])
         package_path = str(item.get("package_path", ""))
-        delivery_count = sum((bool(external_archive), bool(external_files), bool(package_path)))
+        generator = str(item.get("generator", ""))
+        delivery_count = sum((bool(external_archive), bool(external_files), bool(package_path), bool(generator)))
         if delivery_count != 1:
             raise RepositoryError(f"item must use exactly one delivery method: {identifier}@{version}")
-        if external_archive:
+        if generator:
+            if generator != "retail-russian-merge-v1" or item_type != "addon" or engine != "zerohour":
+                raise RepositoryError(f"unsupported content generator for {identifier}@{version}")
+        elif external_archive:
             normalized_archive = normalize_external_archive(
                 external_archive, f"external archive for {identifier}@{version}")
             if normalized_archive != external_archive:
@@ -520,7 +527,9 @@ def command_add(args: argparse.Namespace) -> None:
     size = 0
     external_archive: dict[str, Any] | None = None
     external_files: list[dict[str, Any]] = []
-    if args.external_manifest:
+    if args.generator:
+        pass
+    elif args.external_manifest:
         external_archive, external_files = load_external_delivery(args.external_manifest.resolve())
     else:
         package_relative, digest, size = publish_object(root, args.package.resolve(), "packages", PACKAGE_EXTENSIONS)
@@ -542,7 +551,9 @@ def command_add(args: argparse.Namespace) -> None:
         "requires": [validate_selector(value, "requires") for value in args.requires],
         "conflicts": [validate_selector(value, "conflicts") for value in args.conflicts],
     }
-    if external_archive:
+    if args.generator:
+        item["generator"] = args.generator
+    elif external_archive:
         item["external_archive"] = external_archive
     elif external_files:
         item["external_files"] = external_files
@@ -737,6 +748,8 @@ def parser() -> argparse.ArgumentParser:
     delivery.add_argument("--package", type=Path)
     delivery.add_argument("--external-manifest", type=Path,
                           help="JSON file containing a hash-pinned author-hosted archive or file set")
+    delivery.add_argument("--generator", choices=("retail-russian-merge-v1",),
+                          help="build the add-on locally from user-owned retail resources")
     add.add_argument("--cover", type=Path)
     add.add_argument("--parent", default="")
     add.add_argument("--moddb-url", default="")

@@ -192,6 +192,24 @@ class RepositoryToolTests(unittest.TestCase):
         self.assertFalse(any((self.root / "public/v1/packages").rglob("*")))
         self.run_tool("verify")
 
+    def test_local_generator_is_published_without_a_package(self) -> None:
+        self.initialize()
+        self.run_tool(
+            "add", "--engine", "zerohour", "--type", "mod", "--id", "base-mod",
+            "--name", "Base Mod", "--version", "1", "--package", str(self.package),
+        )
+        self.run_tool(
+            "add", "--engine", "zerohour", "--type", "addon", "--id", "russian-bridge",
+            "--parent", "base-mod", "--name", "Russian Bridge", "--version", "1",
+            "--generator", "retail-russian-merge-v1", "--requires", "base-mod@1",
+        )
+        catalog = json.loads((self.root / "public/v1/catalog.json").read_text(encoding="utf-8"))
+        bridge = next(item for item in catalog["Items"] if item["Id"] == "russian-bridge")
+        self.assertEqual(bridge["Generator"], "retail-russian-merge-v1")
+        self.assertNotIn("DownloadUrl", bridge)
+        self.assertNotIn("Files", bridge)
+        self.run_tool("verify")
+
     def test_ambiguous_external_delivery_is_rejected(self) -> None:
         self.initialize()
         manifest = Path(self.temporary.name) / "ambiguous-external.json"

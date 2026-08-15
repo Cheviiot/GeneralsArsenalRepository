@@ -169,6 +169,20 @@
     },
     {
       "Engine": "zerohour",
+      "Generator": "retail-russian-merge-v1",
+      "Id": "rotr-russian-localization",
+      "ModDBLink": "https://www.moddb.com/mods/rise-of-the-reds",
+      "Name": "ROTR Russian Localization (Retail Bridge)",
+      "ParentId": "hanpatch",
+      "Requires": [
+        "hanpatch@32.2"
+      ],
+      "SupportLink": "https://github.com/Cheviiot/GeneralsArsenalRepository",
+      "Type": "addon",
+      "Version": "1.0"
+    },
+    {
+      "Engine": "zerohour",
       "Files": [
         {
           "DownloadUrl": "https://www.dropbox.com/scl/fi/fr2wdl9l7rvxfbqi32688/VCR-Vanilla-Campaigns-Remastered-Public-v.1.871.big?rlkey=6900m84vsmbmhdubgd8zdq4uv&st=fjx2todh&dl=1",

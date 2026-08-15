@@ -215,6 +215,24 @@
       "support_url": "",
       "type": "addon",
       "version": "1.871"
+    },
+    {
+      "conflicts": [],
+      "cover_path": "",
+      "discord_url": "",
+      "engine": "zerohour",
+      "generator": "retail-russian-merge-v1",
+      "id": "rotr-russian-localization",
+      "moddb_url": "https://www.moddb.com/mods/rise-of-the-reds",
+      "name": "ROTR Russian Localization (Retail Bridge)",
+      "news_url": "",
+      "parent_id": "hanpatch",
+      "requires": [
+        "hanpatch@32.2"
+      ],
+      "support_url": "https://github.com/Cheviiot/GeneralsArsenalRepository",
+      "type": "addon",
+      "version": "1.0"
     }
   ],
   "schema_version": 1
